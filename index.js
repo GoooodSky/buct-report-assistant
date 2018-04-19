@@ -3,7 +3,7 @@ const cheerio = require('cheerio')
 const gm = require('gm')
 const request = require('request')
 const tesseract = require('node-tesseract')
-var information = require('./information') //用于保存用户信息的脚本，请移步至information.js填写所需信息
+const information = require('./information') //用于保存用户信息的脚本，请移步至information.js填写所需信息
 
 //登录所需个人信息
 var studentId = information.studentId
@@ -29,7 +29,7 @@ function getCookieAndCaptcha() {
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,la;q=0.7,zh-TW;q=0.6',
           Connection: 'keep-alive',
           Cookie: cookie,
-          Host: ' 202.4.152.190:8080',
+          Host: '202.4.152.190:8080',
           Referer: ' http://202.4.152.190:8080/pyxx/login.aspx',
           'User-Agent':
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36'
@@ -138,23 +138,23 @@ function queryReport(cookie) {
     // var ifErr = false //在恢复正常前只需输出一次错误，避免连续多次输出
 
     //判断是否已经发送消息，避免死循环式发送
-    function contains(obj, arr) {
-      var i = arr.length
-      while (i--) {
-        if (arr[i] == obj) {
-          return true
-        }
-      }
-      return false
-    }
-    function removeContains(obj, arr) {
-      var i = arr.length
-      while (i--) {
-        if (arr[i] == obj) {
-          arr.splice(i, 1)
-        }
-      }
-    }
+    // function contains(obj, arr) {
+    //   var i = arr.length
+    //   while (i--) {
+    //     if (arr[i] == obj) {
+    //       return true
+    //     }
+    //   }
+    //   return false
+    // }
+    // function removeContains(obj, arr) {
+    //   var i = arr.length
+    //   while (i--) {
+    //     if (arr[i] == obj) {
+    //       arr.splice(i, 1)
+    //     }
+    //   }
+    // }
     //发送请求
     function sendRequest() {
       superagent
@@ -255,9 +255,13 @@ function queryReport(cookie) {
               //     .html()
             }
             //出现剩余名额先选后邮件通知
+            // if (
+            //   reportList[i].剩余人数 > 0 &&
+            //   !contains(reportList[i].报告名称, existedReport)
+            // )
             if (
               reportList[i].剩余人数 > 0 &&
-              !contains(reportList[i].报告名称, existedReport)
+              existedReport.indexOf(reportList[i]) === -1
             ) {
               let date = new Date()
               let now =
@@ -300,11 +304,17 @@ function queryReport(cookie) {
               ifReportExist = false
             }
             //如果报告被剩余人数为0，认为可能有人退报告，重新加入检测队列
+            // if (
+            //   reportList[i].剩余人数 == 0 &&
+            //   contains(reportList[i].报告名称, existedReport)
+            // ) {
+            //   removeContains(reportList[i].报告名称, existedReport)
+            // }
             if (
-              reportList[i].剩余人数 == 0 &&
-              contains(reportList[i].报告名称, existedReport)
+              reportList[i].剩余人数 > 0 &&
+              existedReport.indexOf(reportList[i]) !== -1
             ) {
-              removeContains(reportList[i].报告名称, existedReport)
+              existedReport.splice(i, 1)
             }
           }
           if (ifReportExist == false) {

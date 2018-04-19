@@ -1,7 +1,7 @@
 //用户信息
 module.exports = {
   //学号
-  studentId: '',
+  studentId: '2017200787',
   //学号对应密码
-  studentPassword: ''
+  studentPassword: 'Liutianyi@9999'
 } 
