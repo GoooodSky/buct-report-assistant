@@ -12,6 +12,7 @@
     "cheerio": "^1.0.0-rc.2",
     "gm": "^1.23.1",
     "node-tesseract": "^0.2.7",
+    "nodemailer": "^4.6.4",
     "request": "^2.85.0",
     "superagent": "^3.8.2"
   }

@@ -3,17 +3,21 @@ const cheerio = require('cheerio')
 const gm = require('gm')
 const request = require('request')
 const tesseract = require('node-tesseract')
-const information = require('./information') //用于保存用户信息的脚本，请移步至information.js填写所需信息
+const nodemailer = require('nodemailer')
+
+const info = require('./information').user1 //用于保存用户信息的脚本，请移步至information.js填写所需信息
 
 //登录所需个人信息
-var studentId = information.studentId
-var studentPassword = information.studentPassword
+var studentId = info.studentId
+var studentPassword = info.studentPassword
+//用于接收邮件的邮箱
+var receiverEmail = info.receiverEmail
 //登录所需链接
 var loginUrl = 'http://202.4.152.190:8080/pyxx/login.aspx'
 var studentUrl =
   'http://202.4.152.190:8080/pyxx/txhdgl/hdlist.aspx?xh=' + studentId
 
-var refreshFrequency = 1000 //报告刷新频率，毫秒计，建议不要低于1000ms，造成不必要的网络拥堵
+var refreshFrequency = 200 //报告刷新频率，毫秒计，建议不要低于1000ms，造成不必要的网络拥堵
 
 //获取cookie和验证码
 function getCookieAndCaptcha() {
@@ -60,7 +64,6 @@ function getCookieAndCaptcha() {
       .set(header)
       .end(function(err, res) {
         if (err) {
-          //   console.log(err.status)
           return
         }
         cookie = res.header['set-cookie'] //从response中得到cookie
@@ -120,14 +123,36 @@ function login(cookie, captcha) {
       })
       .end(function(err, res) {
         if (err) {
-          //   console.log(err.status)
           return
         }
-        // cookie = res.header['cookie'] //从response中得到cookie
-        // emitter.emit("setCookeie");
-        // console.log(res.text)
-        // console.log(res.status)
       })
+  })
+}
+//发送邮件
+function sendEmail(receiver, type, content) {
+  // create reusable transporter object using the default SMTP transport
+  let transporter = nodemailer.createTransport({
+    host: 'smtp.163.com',
+    port: 25,
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: 'buctreport@163.com',
+      pass: 'Qingwudaoyong666' //此密码为授权码，盗号无用
+    }
+  })
+  // setup email data with unicode symbols
+  let mailOptions = {
+    from: '"BUCT报告小助手" <buctreport@163.com>', // sender address
+    to: receiver, // list of receivers
+    subject: '获取到【' + type + '】', // Subject line
+    text: content
+  }
+  // send mail with defined transport object
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      return console.log(error)
+    }
+    // console.log('Message sent: %s', info.messageId)
   })
 }
 //查询报告
@@ -135,26 +160,6 @@ function queryReport(cookie) {
   return new Promise((resolve, reject) => {
     var existedReport = [] //存储已经输出信息的报告
     var ifReportExist = false //判断报告是否已经标记过，避免setInterval循环查询时多次输出
-    // var ifErr = false //在恢复正常前只需输出一次错误，避免连续多次输出
-
-    //判断是否已经发送消息，避免死循环式发送
-    // function contains(obj, arr) {
-    //   var i = arr.length
-    //   while (i--) {
-    //     if (arr[i] == obj) {
-    //       return true
-    //     }
-    //   }
-    //   return false
-    // }
-    // function removeContains(obj, arr) {
-    //   var i = arr.length
-    //   while (i--) {
-    //     if (arr[i] == obj) {
-    //       arr.splice(i, 1)
-    //     }
-    //   }
-    // }
     //发送请求
     function sendRequest() {
       superagent
@@ -162,12 +167,6 @@ function queryReport(cookie) {
         .set('Cookie', cookie)
         .end(function(err, pres) {
           if (err) {
-            // if (ifErr == false) {
-            // //   status = err.status
-            //   //   console.log('StatusCode: ' + status)
-            //   ifErr = true //发生错误了
-            //   ifReportExist = false
-            // }
             clearInterval(loop) //出现错误跳出循环
             reject(err)
             return
@@ -175,7 +174,7 @@ function queryReport(cookie) {
           const $ = cheerio.load(pres.text, { decodeEntities: false })
           let reportList = []
           let reportTable = $('#dgData00 tbody tr')
-          let reportCount = reportTable.length - 1
+          let reportCount = reportTable.length - 1 // 当前所有报告数量
 
           for (let i = 0; i < reportCount; i++) {
             reportList[i] = {
@@ -255,14 +254,11 @@ function queryReport(cookie) {
               //     .html()
             }
             //出现剩余名额先选后邮件通知
-            // if (
-            //   reportList[i].剩余人数 > 0 &&
-            //   !contains(reportList[i].报告名称, existedReport)
-            // )
             if (
               reportList[i].剩余人数 > 0 &&
-              existedReport.indexOf(reportList[i]) === -1
+              existedReport.indexOf(reportList[i].报告名称) === -1
             ) {
+              //在这里抢报告 成功返回true 一并发送邮件
               let date = new Date()
               let now =
                 date.getFullYear() +
@@ -276,43 +272,42 @@ function queryReport(cookie) {
                 ('0' + date.getMinutes()).slice(-2) +
                 ':' +
                 ('0' + date.getSeconds()).slice(-2)
-              reportDetail =
-                now +
-                '\n' +
+              let reportDetail =
                 '获取到' +
                 '【' +
                 reportList[i].类别 +
                 '】' +
                 '\n' +
-                '报告名称:' +
+                '报告名称：' +
                 reportList[i].报告名称 +
                 '\n' +
-                '报告开始时间:' +
+                '报告开始时间：' +
                 reportList[i].报告开始时间 +
                 '\n' +
-                '报告截止时间:' +
+                '报告截止时间：' +
                 reportList[i].报告截止时间 +
                 '\n' +
-                '报告地点:' +
+                '报告地点：' +
                 reportList[i].报告地点 +
                 '\n' +
-                '剩余人数:' +
+                '剩余人数：' +
                 reportList[i].剩余人数 +
                 '\n'
+              // +
+              // '是否抢到：' +
+              // '【是】' +
+              // '\n'
+              console.log('\n' + now)
               console.log(reportDetail)
+              //在这里将reportDetail用邮件发出去
+              sendEmail(receiverEmail, reportList[i].类别, reportDetail)
               existedReport.push(reportList[i].报告名称)
               ifReportExist = false
             }
             //如果报告被剩余人数为0，认为可能有人退报告，重新加入检测队列
-            // if (
-            //   reportList[i].剩余人数 == 0 &&
-            //   contains(reportList[i].报告名称, existedReport)
-            // ) {
-            //   removeContains(reportList[i].报告名称, existedReport)
-            // }
             if (
-              reportList[i].剩余人数 > 0 &&
-              existedReport.indexOf(reportList[i]) !== -1
+              reportList[i].剩余人数 === 0 &&
+              existedReport.indexOf(reportList[i].报告名称) !== -1
             ) {
               existedReport.splice(i, 1)
             }
@@ -323,7 +318,6 @@ function queryReport(cookie) {
           }
         })
     }
-
     //查询循环，频率用refreshFrequency手动设置
     var loop = setInterval(sendRequest, refreshFrequency) //查询循环，频率用refreshFrequency手动设置
   })
